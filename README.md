@@ -1,22 +1,22 @@
 # Enhanced Gemini MCP Server
 
-🧠 **Intelligent Codebase Analysis with Gemini's 1M Token Context Window**
+**Intelligent Codebase Analysis with Gemini's 1M Token Context Window**
 
 Transform your development workflow with this enhanced MCP server that leverages Google's Gemini AI for comprehensive codebase analysis. Load entire projects into Gemini's massive context window and get intelligent insights about your code.
 
-## ✨ Key Features
+## Key Features
 
-- **🎯 Intelligent Codebase Loading** - Smart file prioritization and relevance scoring
-- **🧮 1M Token Context** - Leverage Gemini's full context window for comprehensive analysis
-- **🔍 Semantic Search** - Natural language code search across your entire project
-- **🏗️ Architecture Analysis** - Get detailed insights into your codebase structure
-- **💡 Smart Improvements** - Targeted suggestions for performance, security, and maintainability
-- **📊 Code Flow Tracing** - Understand how functionality works across files
-- **🎨 Project Summaries** - Comprehensive overviews of any codebase
-- **⚡ Session Caching** - 30-minute cache for faster repeated analyses
-- **💾 Export Sessions** - Save important findings for future reference
+- **Intelligent Codebase Loading** - Smart file prioritization and relevance scoring
+- **1M Token Context** - Leverage Gemini's full context window for comprehensive analysis
+- **Semantic Search** - Natural language code search across your entire project
+- **Architecture Analysis** - Get detailed insights into your codebase structure
+- **Smart Improvements** - Targeted suggestions for performance, security, and maintainability
+- **Code Flow Tracing** - Understand how functionality works across files
+- **Project Summaries** - Comprehensive overviews of any codebase
+- **Session Caching** - 30-minute cache for faster repeated analyses
+- **Export Sessions** - Save important findings for future reference
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+ installed
@@ -38,9 +38,9 @@ cd gemini-mcp-enhanced
 
 3. **Enter your Gemini API key when prompted**
 
-That's it! 🎉
+That's it!
 
-## 🛠️ Available Tools
+## Available Tools
 
 ### Core Analysis Tools
 
@@ -108,7 +108,7 @@ Get current session cache statistics:
 mcp__gemini-collab-enhanced__session_stats
 ```
 
-## ⚡ Session Caching
+## Session Caching
 
 The enhanced server includes intelligent session caching to improve performance:
 
@@ -122,7 +122,7 @@ The enhanced server includes intelligent session caching to improve performance:
 2. **Token Savings**: Avoid redundant API calls to Gemini
 3. **Persistent Insights**: Export sessions for long-term reference
 
-## 📖 Usage Examples
+## Usage Examples
 
 ### Complete Workflow Example
 
@@ -150,7 +150,7 @@ mcp__gemini-collab-enhanced__ask_with_context
   question: "How can I optimize the database queries in the user service?"
 ```
 
-## 🧠 How It Works
+## How It Works
 
 ### Intelligent File Prioritization
 The server uses a sophisticated scoring system to determine which files are most relevant:
@@ -173,7 +173,7 @@ Creates comprehensive context including:
 - Relevance scores and language detection
 - Project statistics and organization
 
-## 🔧 Technical Details
+## Technical Details
 
 ### Supported File Types
 - **Languages**: Python, JavaScript, TypeScript, Java, C++, Go, Rust, Swift, Kotlin, Scala
@@ -187,7 +187,7 @@ Creates comprehensive context including:
 - Token-aware content loading
 - Efficient context creation
 
-## 📁 Installation Details
+## Installation Details
 
 The enhanced server is installed at: `~/.claude-mcp-servers/gemini-collab-enhanced/`
 
@@ -199,7 +199,7 @@ The enhanced server is installed at: `~/.claude-mcp-servers/gemini-collab-enhanc
 └── test_enhanced.py       # Test suite
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 **Server not showing up?**
 ```bash
@@ -227,7 +227,7 @@ pip install tiktoken>=0.5.1
 - Check internet connection
 - Ensure dependencies are installed: `pip install -r requirements.txt`
 
-## 🔄 Updates
+## Updates
 
 ### From Basic to Enhanced
 If upgrading from the basic MCP server:
@@ -244,7 +244,7 @@ cd gemini-mcp-enhanced
 claude mcp remove gemini-collab
 ```
 
-## 🎯 Best Practices
+## Best Practices
 
 ### For Large Codebases
 - Start with architectural analysis
@@ -264,7 +264,7 @@ claude mcp remove gemini-collab
 3. Get performance-focused suggestions
 4. Trace code flow for bottlenecks
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please:
 
@@ -273,11 +273,11 @@ Contributions welcome! Please:
 3. Add tests for new functionality
 4. Submit a pull request
 
-## 📜 License
+## License
 
 MIT License - Use freely!
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Built for the Claude Code community
 - Powered by Google's Gemini AI
@@ -285,6 +285,6 @@ MIT License - Use freely!
 
 ---
 
-**Ready to revolutionize your code analysis?** 🚀
+**Ready to revolutionize your code analysis?**
 
 Start by loading your first codebase and experience the power of AI-driven development insights!
