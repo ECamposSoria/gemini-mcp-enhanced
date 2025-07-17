@@ -13,7 +13,9 @@ import asyncio
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+import hashlib
+import time
 
 # Ensure unbuffered output
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
@@ -271,10 +273,144 @@ When answering questions:
         
         return context
 
+class AnalysisSession:
+    """Lightweight session cache for analysis results"""
+    
+    def __init__(self, ttl_minutes: int = 30):
+        self.cache: Dict[str, Dict[str, Any]] = {}
+        self.ttl = timedelta(minutes=ttl_minutes)
+        self.project_path: Optional[str] = None
+        self.codebase_loaded_at: Optional[datetime] = None
+        
+    def _make_cache_key(self, tool_name: str, arguments: Dict[str, Any]) -> str:
+        """Create a unique cache key from tool name and arguments"""
+        # Sort arguments for consistent hashing
+        args_str = json.dumps(arguments, sort_keys=True)
+        return f"{tool_name}:{hashlib.md5(args_str.encode()).hexdigest()}"
+    
+    def _is_expired(self, cache_entry: Dict[str, Any]) -> bool:
+        """Check if a cache entry has expired"""
+        return datetime.now() - cache_entry['timestamp'] > self.ttl
+    
+    def get(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[str]:
+        """Get cached result if available and not expired"""
+        key = self._make_cache_key(tool_name, arguments)
+        
+        if key in self.cache:
+            entry = self.cache[key]
+            if not self._is_expired(entry):
+                return entry['result'] + "\n\n📌 *(Cached result - generated " + \
+                       f"{int((datetime.now() - entry['timestamp']).total_seconds() / 60)} minutes ago)*"
+            else:
+                # Remove expired entry
+                del self.cache[key]
+        
+        return None
+    
+    def set(self, tool_name: str, arguments: Dict[str, Any], result: str):
+        """Cache an analysis result"""
+        key = self._make_cache_key(tool_name, arguments)
+        self.cache[key] = {
+            'result': result,
+            'timestamp': datetime.now(),
+            'tool_name': tool_name,
+            'arguments': arguments
+        }
+    
+    def clear(self):
+        """Clear all cached results"""
+        self.cache.clear()
+        self.project_path = None
+        self.codebase_loaded_at = None
+    
+    def set_project(self, project_path: str):
+        """Set current project and clear cache if project changed"""
+        if self.project_path and self.project_path != project_path:
+            # Different project, clear cache
+            self.clear()
+        self.project_path = project_path
+        self.codebase_loaded_at = datetime.now()
+    
+    def export_session(self, export_path: Optional[str] = None) -> str:
+        """Export important findings to a markdown file"""
+        if not self.project_path:
+            return "❌ No active session to export"
+        
+        if not export_path:
+            export_path = self.project_path
+            
+        # Create export directory
+        export_dir = os.path.join(export_path, ".gemini-analysis")
+        os.makedirs(export_dir, exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"session_export_{timestamp}.md"
+        filepath = os.path.join(export_dir, filename)
+        
+        # Build export content
+        content = f"""# Gemini Analysis Session Export
+
+**Project:** {self.project_path}
+**Session Started:** {self.codebase_loaded_at}
+**Export Time:** {datetime.now()}
+**Cached Analyses:** {len(self.cache)}
+
+---
+
+"""
+        
+        # Add each cached analysis
+        for key, entry in sorted(self.cache.items(), key=lambda x: x[1]['timestamp']):
+            tool_name = entry['tool_name']
+            args = entry['arguments']
+            timestamp = entry['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+            
+            content += f"## {tool_name}"
+            if args:
+                content += f" - {json.dumps(args)}"
+            content += f"\n\n**Generated:** {timestamp}\n\n"
+            content += entry['result']
+            content += "\n\n---\n\n"
+        
+        # Write to file
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        # Also update .gitignore if it exists
+        gitignore_path = os.path.join(self.project_path, ".gitignore")
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, 'r', encoding='utf-8') as f:
+                gitignore_content = f.read()
+            
+            if ".gemini-analysis/" not in gitignore_content:
+                with open(gitignore_path, 'a', encoding='utf-8') as f:
+                    f.write("\n# Gemini analysis exports\n.gemini-analysis/\n")
+        
+        return f"✅ Session exported to: {filepath}\n\nNote: Added .gemini-analysis/ to .gitignore to prevent committing analysis files."
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get session statistics"""
+        if not self.cache:
+            return {"cached_analyses": 0, "cache_size_kb": 0}
+        
+        # Calculate approximate cache size (just count result text)
+        cache_size = sum(len(entry['result']) + len(entry['tool_name']) + 
+                        len(json.dumps(entry['arguments'])) 
+                        for entry in self.cache.values())
+        
+        return {
+            "cached_analyses": len(self.cache),
+            "cache_size_kb": round(cache_size / 1024, 2),
+            "oldest_entry": min((e['timestamp'] for e in self.cache.values()), default=None),
+            "newest_entry": max((e['timestamp'] for e in self.cache.values()), default=None)
+        }
+
 # Global state
 current_codebase_context = None
 current_project_path = None
 current_codebase_data = None
+analysis_session = AnalysisSession(ttl_minutes=30)
 
 def send_response(response: Dict[str, Any]):
     """Send a JSON-RPC response"""
@@ -326,7 +462,7 @@ def handle_tools_list(request_id: Any) -> Dict[str, Any]:
         },
         {
             "name": "analyze_architecture",
-            "description": "Get comprehensive architecture analysis of loaded codebase",
+            "description": "Get comprehensive architecture analysis of loaded codebase (results cached for 30 minutes)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -340,7 +476,7 @@ def handle_tools_list(request_id: Any) -> Dict[str, Any]:
         },
         {
             "name": "semantic_search",
-            "description": "Search codebase semantically using natural language queries",
+            "description": "Search codebase semantically using natural language queries (results cached for 30 minutes)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -354,7 +490,7 @@ def handle_tools_list(request_id: Any) -> Dict[str, Any]:
         },
         {
             "name": "suggest_improvements",
-            "description": "Get specific improvement suggestions for the loaded codebase",
+            "description": "Get specific improvement suggestions for the loaded codebase (results cached for 30 minutes)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -368,7 +504,7 @@ def handle_tools_list(request_id: Any) -> Dict[str, Any]:
         },
         {
             "name": "explain_codeflow",
-            "description": "Trace and explain how specific functionality works across the codebase",
+            "description": "Trace and explain how specific functionality works across the codebase (results cached for 30 minutes)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -382,7 +518,7 @@ def handle_tools_list(request_id: Any) -> Dict[str, Any]:
         },
         {
             "name": "codebase_summary",
-            "description": "Get a comprehensive summary of the loaded codebase",
+            "description": "Get a comprehensive summary of the loaded codebase (results cached for 30 minutes)",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -390,7 +526,7 @@ def handle_tools_list(request_id: Any) -> Dict[str, Any]:
         },
         {
             "name": "ask_with_context",
-            "description": "Ask any question with full codebase context and intelligent analysis",
+            "description": "Ask any question with full codebase context and intelligent analysis (results cached for 30 minutes)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -400,6 +536,27 @@ def handle_tools_list(request_id: Any) -> Dict[str, Any]:
                     }
                 },
                 "required": ["question"]
+            }
+        },
+        {
+            "name": "export_session",
+            "description": "Export cached analysis results to a markdown file for future reference",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "export_path": {
+                        "type": "string",
+                        "description": "Optional path to export the session (defaults to project path)"
+                    }
+                }
+            }
+        },
+        {
+            "name": "session_stats",
+            "description": "Get current session cache statistics",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
             }
         }
     ]
@@ -450,6 +607,9 @@ def handle_tool_call(request_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
                 current_project_path = project_path
                 current_codebase_data = codebase_data
                 
+                # Update session with new project
+                analysis_session.set_project(project_path)
+                
                 # Create summary with statistics
                 languages = {}
                 for file_info in codebase_data['files']:
@@ -476,14 +636,21 @@ Gemini now has your entire codebase intelligently loaded in context!
 • `codebase_summary` - Complete project overview
 • `ask_with_context` - Ask anything about your code
 
-Ready for intelligent analysis! 🧠"""
+Ready for intelligent analysis! 🧠
+
+💡 **Session Caching:** Analysis results are cached for 30 minutes to improve performance."""
 
         elif tool_name == "analyze_architecture":
             if not current_codebase_context:
                 result = "❌ No codebase loaded. Use 'load_codebase' first."
             else:
-                focus = arguments.get("focus", "architecture")
-                prompt = f"""Provide a comprehensive {focus} analysis of this codebase. Include:
+                # Check cache first
+                cached_result = analysis_session.get(tool_name, arguments)
+                if cached_result:
+                    result = cached_result
+                else:
+                    focus = arguments.get("focus", "architecture")
+                    prompt = f"""Provide a comprehensive {focus} analysis of this codebase. Include:
 
 1. **Overall Architecture & Design Patterns**
 2. **Key Components & Their Relationships** 
@@ -493,14 +660,21 @@ Ready for intelligent analysis! 🧠"""
 6. **Notable Design Decisions**
 
 Be specific and reference actual files, functions, and code patterns you observe."""
-                result = call_gemini_with_context(prompt, 0.2)
+                    result = call_gemini_with_context(prompt, 0.2)
+                    # Cache the result
+                    analysis_session.set(tool_name, arguments, result)
 
         elif tool_name == "semantic_search":
             if not current_codebase_context:
                 result = "❌ No codebase loaded. Use 'load_codebase' first."
             else:
-                query = arguments.get("query")
-                prompt = f"""Perform a semantic search for: "{query}"
+                # Check cache first
+                cached_result = analysis_session.get(tool_name, arguments)
+                if cached_result:
+                    result = cached_result
+                else:
+                    query = arguments.get("query")
+                    prompt = f"""Perform a semantic search for: "{query}"
 
 Provide:
 1. **Exact file locations** where this functionality exists
@@ -510,14 +684,21 @@ Provide:
 5. **Dependencies** and connections to other parts
 
 Focus on semantic meaning, not just keyword matching."""
-                result = call_gemini_with_context(prompt, 0.2)
+                    result = call_gemini_with_context(prompt, 0.2)
+                    # Cache the result
+                    analysis_session.set(tool_name, arguments, result)
 
         elif tool_name == "suggest_improvements":
             if not current_codebase_context:
                 result = "❌ No codebase loaded. Use 'load_codebase' first."
             else:
-                area = arguments.get("area", "general")
-                prompt = f"""Analyze the codebase and suggest specific improvements for {area}:
+                # Check cache first
+                cached_result = analysis_session.get(tool_name, arguments)
+                if cached_result:
+                    result = cached_result
+                else:
+                    area = arguments.get("area", "general")
+                    prompt = f"""Analyze the codebase and suggest specific improvements for {area}:
 
 Provide:
 1. **Specific Issues** with file/line references
@@ -527,14 +708,21 @@ Provide:
 5. **Potential Risks** of each change
 
 Focus on actionable improvements with clear benefits."""
-                result = call_gemini_with_context(prompt, 0.3)
+                    result = call_gemini_with_context(prompt, 0.3)
+                    # Cache the result
+                    analysis_session.set(tool_name, arguments, result)
 
         elif tool_name == "explain_codeflow":
             if not current_codebase_context:
                 result = "❌ No codebase loaded. Use 'load_codebase' first."
             else:
-                functionality = arguments.get("functionality")
-                prompt = f"""Trace and explain how this functionality works: "{functionality}"
+                # Check cache first
+                cached_result = analysis_session.get(tool_name, arguments)
+                if cached_result:
+                    result = cached_result
+                else:
+                    functionality = arguments.get("functionality")
+                    prompt = f"""Trace and explain how this functionality works: "{functionality}"
 
 Provide:
 1. **Entry Points** - Where this functionality starts
@@ -545,13 +733,20 @@ Provide:
 6. **Visual Flow** - ASCII diagram if helpful
 
 Reference specific files and line numbers."""
-                result = call_gemini_with_context(prompt, 0.2)
+                    result = call_gemini_with_context(prompt, 0.2)
+                    # Cache the result
+                    analysis_session.set(tool_name, arguments, result)
 
         elif tool_name == "codebase_summary":
             if not current_codebase_context:
                 result = "❌ No codebase loaded. Use 'load_codebase' first."
             else:
-                prompt = """Provide a comprehensive summary of this entire codebase:
+                # Check cache first
+                cached_result = analysis_session.get(tool_name, arguments)
+                if cached_result:
+                    result = cached_result
+                else:
+                    prompt = """Provide a comprehensive summary of this entire codebase:
 
 1. **Project Purpose** - What does this software do?
 2. **Architecture Overview** - How is it structured?
@@ -561,14 +756,42 @@ Reference specific files and line numbers."""
 6. **Development Insights** - Patterns, conventions, notable aspects
 
 Make it accessible for both technical and non-technical stakeholders."""
-                result = call_gemini_with_context(prompt, 0.3)
+                    result = call_gemini_with_context(prompt, 0.3)
+                    # Cache the result
+                    analysis_session.set(tool_name, arguments, result)
 
         elif tool_name == "ask_with_context":
             if not current_codebase_context:
                 result = "❌ No codebase loaded. Use 'load_codebase' first."
             else:
-                question = arguments.get("question")
-                result = call_gemini_with_context(question, 0.3)
+                # Check cache first
+                cached_result = analysis_session.get(tool_name, arguments)
+                if cached_result:
+                    result = cached_result
+                else:
+                    question = arguments.get("question")
+                    result = call_gemini_with_context(question, 0.3)
+                    # Cache the result
+                    analysis_session.set(tool_name, arguments, result)
+
+        elif tool_name == "export_session":
+            export_path = arguments.get("export_path")
+            result = analysis_session.export_session(export_path)
+
+        elif tool_name == "session_stats":
+            stats = analysis_session.get_stats()
+            if stats["cached_analyses"] == 0:
+                result = "📦 No cached analyses in current session."
+            else:
+                result = f"""📊 **Session Cache Statistics:**
+
+📝 **Cached Analyses:** {stats['cached_analyses']}
+💾 **Cache Size:** {stats['cache_size_kb']} KB
+⏱️ **Session Started:** {analysis_session.codebase_loaded_at or 'N/A'}
+📅 **Oldest Entry:** {stats.get('oldest_entry', 'N/A')}
+🆕 **Newest Entry:** {stats.get('newest_entry', 'N/A')}
+
+💡 Tip: Use `export_session` to save important findings before they expire!"""
 
         else:
             raise ValueError(f"Unknown tool: {tool_name}")

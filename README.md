@@ -13,6 +13,8 @@ Transform your development workflow with this enhanced MCP server that leverages
 - **💡 Smart Improvements** - Targeted suggestions for performance, security, and maintainability
 - **📊 Code Flow Tracing** - Understand how functionality works across files
 - **🎨 Project Summaries** - Comprehensive overviews of any codebase
+- **⚡ Session Caching** - 30-minute cache for faster repeated analyses
+- **💾 Export Sessions** - Save important findings for future reference
 
 ## 🚀 Quick Start
 
@@ -90,6 +92,35 @@ Ask any question about your loaded codebase:
 mcp__gemini-collab-enhanced__ask_with_context
   question: "What security vulnerabilities exist in the authentication system?"
 ```
+
+### Session Management Tools
+
+#### `export_session`
+Export cached analysis results to a markdown file:
+```bash
+mcp__gemini-collab-enhanced__export_session
+  export_path: "/path/to/export"  # optional, defaults to project path
+```
+
+#### `session_stats`
+Get current session cache statistics:
+```bash
+mcp__gemini-collab-enhanced__session_stats
+```
+
+## ⚡ Session Caching
+
+The enhanced server includes intelligent session caching to improve performance:
+
+- **Automatic Caching**: Analysis results are cached for 30 minutes
+- **Smart Invalidation**: Cache clears when switching projects
+- **Performance Boost**: Repeated queries return instantly from cache
+- **Export Capability**: Save important findings before they expire
+
+### Caching Benefits
+1. **Faster Iterations**: Re-run analyses without waiting
+2. **Token Savings**: Avoid redundant API calls to Gemini
+3. **Persistent Insights**: Export sessions for long-term reference
 
 ## 📖 Usage Examples
 
