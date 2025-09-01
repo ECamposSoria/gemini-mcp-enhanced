@@ -33,7 +33,8 @@ except ImportError:
 
 # Initialize Gemini
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     
     API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
     if API_KEY == "YOUR_API_KEY_HERE":
@@ -46,8 +47,7 @@ try:
         }), file=sys.stdout, flush=True)
         sys.exit(1)
     
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    client = genai.Client(api_key=API_KEY)
     GEMINI_AVAILABLE = True
 except Exception as e:
     GEMINI_AVAILABLE = False
@@ -575,9 +575,10 @@ def call_gemini_with_context(prompt: str, temperature: float = 0.3) -> str:
         else:
             full_prompt = "❌ No codebase loaded. Please use 'load_codebase' first.\n\n" + prompt
             
-        response = model.generate_content(
-            full_prompt,
-            generation_config=genai.GenerationConfig(
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
                 temperature=temperature,
                 max_output_tokens=8192,
             )
