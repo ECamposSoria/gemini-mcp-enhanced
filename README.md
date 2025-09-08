@@ -227,22 +227,7 @@ pip install tiktoken>=0.5.1
 - Check internet connection
 - Ensure dependencies are installed: `pip install -r requirements.txt`
 
-## Updates
 
-### From Basic to Enhanced
-If upgrading from the basic MCP server:
-
-1. **Install enhanced version:**
-```bash
-git clone https://github.com/ECamposSoria/gemini-mcp-enhanced.git
-cd gemini-mcp-enhanced
-./enhanced_setup.sh
-```
-
-2. **Remove old version (optional):**
-```bash
-claude mcp remove gemini-collab
-```
 
 ## Best Practices
 
