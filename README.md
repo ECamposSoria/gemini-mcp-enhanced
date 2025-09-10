@@ -273,3 +273,4 @@ MIT License - Use freely!
 **Ready to revolutionize your code analysis?**
 
 Start by loading your first codebase and experience the power of AI-driven development insights!
+
